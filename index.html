@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>MIDI to M300</title>
+  </head>
+
+  <body>
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+    <div>
+      <input type="file" id="filereader" />
+      <div id="trackInfo"></div>
+      <button type="button" id="start" onclick="handleMidi()">Generate</button>
+    </div>
+    <textarea id="outputArea" rows="50" cols="100"></textarea>
+    <script>
+      let midi = null;
+
+      document.getElementById("filereader").addEventListener("change", e => {
+        const files = e.target.files;
+        if (files.length > 0) {
+          const file = files[0];
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            midi = new Midi(e.target.result);
+            if (!midi) {
+              alert("Invalid file provided.");
+              return;
+            }
+            generateTrackInfo(midi);
+          };
+          reader.readAsArrayBuffer(file);
+        }
+      });
+
+      function generateTrackInfo(midi) {
+        let infoDiv = document.getElementById("trackInfo");
+        infoDiv.innerHTML = '';
+        const trackSelectors = midi.tracks.forEach((track, index) => {
+          infoDiv.innerHTML += `<input id="trackButton${index}" type="radio" name="track" value=${index}> Track ${index +
+            1}: ${track.instrument.name} - ${track.notes.length} notes<br>`;
+        });
+        infoDiv.innerHTML +=
+          'Speed multiplier: <input id="speedMultiplierInput" type="number" step="0.01" min="0.01" value="1">';
+        document.getElementById("trackButton0").checked = true;
+      }
+
+      // From https://gist.github.com/YuxiUx/ef84328d95b10d0fcbf537de77b936cd
+      function noteToFreq(note) {
+        let a = 440; //frequency of A (common value is 440Hz)
+        return (a / 32) * 2 ** ((note - 9) / 12);
+      }
+
+      function handleMidi() {
+        if (!midi) {
+          alert("No MIDI provided.");
+          return;
+        }
+
+        const trackNumber = document.querySelector(
+          'input[name="track"]:checked'
+        ).value;
+        const tempoMultiplier =
+          1 /
+          Math.max(document.getElementById("speedMultiplierInput").value, 0.01);
+        const track = midi.tracks[trackNumber];
+        const notes = track.notes;
+
+        let curr = 0;
+        const gcode = [];
+        while (curr < track.notes.length) {
+          // Keep the highest note if multiple occur at the same time
+          let highestCurrNote = track.notes[curr].midi;
+          while (
+            curr + 1 < track.notes.length &&
+            track.notes[curr].time === track.notes[curr + 1].time
+          ) {
+            curr++;
+            highestCurrNote = Math.max(highestCurrNote, track.notes[curr].midi);
+          }
+          const frequency = noteToFreq(highestCurrNote);
+          const time = track.notes[curr].time;
+          const duration = track.notes[curr].duration;
+          const nextNoteTime =
+            curr + 1 < track.notes.length
+              ? track.notes[curr + 1].time
+              : duration + time;
+          // If this note overlaps the next note, cut it off
+          const trimmedDuration = Math.min(nextNoteTime - time, duration);
+
+          // Write an M300 to play a note with the calculated pitch and duration
+          gcode.push(
+            `M300 P${Math.round(
+              trimmedDuration * 1000 * tempoMultiplier
+            )} S${Math.round(frequency)}\n`
+          );
+          // If the current note is released before the start of the next note, insert a pause
+          if (nextNoteTime > time + trimmedDuration) {
+            gcode.push(
+              `M300 P${Math.round(
+                (nextNoteTime - time - trimmedDuration) * tempoMultiplier * 1000
+              )} S0\n`
+            );
+          }
+
+          curr++;
+        }
+
+        const output = gcode.reduce((acc, e) => acc + e, "");
+        document.getElementById("outputArea").value = output;
+      }
+    </script>
+  </body>
+</html>
