@@ -41,7 +41,7 @@
       let infoDiv = document.getElementById("trackInfo");
       infoDiv.innerHTML = '';
       const trackSelectors = midi.tracks.forEach((track, index) => {
-        infoDiv.innerHTML += `<input id="trackButton${index}" type="radio" name="track" value=${index}> Track ${index +
+        infoDiv.innerHTML += `<input id="trackButton${index}" type="checkbox" value=${index}> Track ${index +
           1}: ${track.instrument.name} - ${track.notes.length} notes<br>`;
       });
       infoDiv.innerHTML +=
@@ -61,18 +61,27 @@
         return;
       }
 
-      const trackNumber = document.querySelector(
-        'input[name="track"]:checked'
-      ).value;
+      const track = {notes: []};
+
+      // Merge note arrays from selected tracks
+      for(let i = 0; i < midi.tracks.length; i++) {
+        if(document.getElementById(`trackButton${i}`).checked) {
+          track.notes = track.notes.concat(midi.tracks[i].notes);
+        }
+      }
+
+      // Sort notes by start time
+      track.notes.sort((a, b) => a.time - b.time);
+
       const tempoMultiplier =
         1 /
         Math.max(document.getElementById("speedMultiplierInput").value, 0.01);
-      const track = midi.tracks[trackNumber];
-      const notes = track.notes;
 
       let curr = 0;
       const gcode = [];
       while (curr < track.notes.length) {
+
+        console.log(track.notes[curr].time);
         // Keep the highest note if multiple occur at the same time
         let highestCurrNote = track.notes[curr].midi;
         while (
@@ -102,7 +111,7 @@
         const pauseDuration = Math.round((nextNoteTime - time - trimmedDuration) * tempoMultiplier * 1000);
         // Marlin doesn't seem to deal with very short pauses accurately, so filter out pauses shorter than the following.
         // May need tuning
-        const minDuration = 15;
+        const minDuration = 17;
 
         // If the current note is released before the start of the next note, insert a pause
         if (nextNoteTime > time + trimmedDuration && pauseDuration >= minDuration) {
