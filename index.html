@@ -98,9 +98,19 @@
           curr + 1 < track.notes.length
             ? track.notes[curr + 1].time
             : duration + time;
-        // If this note overlaps the next note, cut it off
-        const trimmedDuration = Math.min(nextNoteTime - time, duration);
 
+        // If this note overlaps the next note, cut it off
+        let trimmedDuration = Math.min(nextNoteTime - time, duration);
+
+        const pauseDuration = nextNoteTime - time - trimmedDuration;
+
+        // Marlin doesn't seem to deal with very short pauses accurately, so merge short pauses with the previous note.
+        // May need tuning
+        const minDuration = 18/1000;
+
+        if(pauseDuration < minDuration) {
+          trimmedDuration += pauseDuration;
+        }
         // Write an M300 to play a note with the calculated pitch and duration
         gcode.push(
           `M300 P${Math.round(
@@ -108,15 +118,10 @@
           )} S${Math.round(frequency)}\n`
         );
 
-        const pauseDuration = Math.round((nextNoteTime - time - trimmedDuration) * tempoMultiplier * 1000);
-        // Marlin doesn't seem to deal with very short pauses accurately, so filter out pauses shorter than the following.
-        // May need tuning
-        const minDuration = 17;
-
         // If the current note is released before the start of the next note, insert a pause
-        if (nextNoteTime > time + trimmedDuration && pauseDuration >= minDuration) {
+        if (pauseDuration >= minDuration) {
           gcode.push(
-            `M300 P${pauseDuration} S0\n`
+            `M300 P${Math.round(pauseDuration * tempoMultiplier * 1000)} S0\n`
           );
         }
 
