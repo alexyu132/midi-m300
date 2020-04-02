@@ -9,6 +9,7 @@
 
 <body>
   <script src="https://unpkg.com/@tonejs/midi"></script>
+  <script type="text/javascript" src="https://unpkg.com/tone@13.4.9/build/Tone.js"></script>
   <h1>MIDI to M300 Converter</h1>
   <div>
     <input type="file" id="filereader" />
@@ -19,6 +20,22 @@
   <script>
     let midi = null;
     document.getElementById('outputArea').value = '';
+
+    let synth = new Tone.Synth({
+      oscillator: {
+        type: 'square'
+      }
+      ,
+      envelope: {
+        attack: 0.001,
+        decay: 0,
+        sustain: 1,
+        release: 0.001
+      }
+    }
+    ).toMaster();
+
+    synth.volume.value=-25;
 
     document.getElementById("filereader").addEventListener("change", e => {
       const files = e.target.files;
@@ -36,6 +53,10 @@
         reader.readAsArrayBuffer(file);
       }
     });
+
+    function playNote(frequency, duration) {
+      return (time) => {synth.triggerAttackRelease(frequency, duration, time)}; 
+    }
 
     function generateTrackInfo(midi) {
       let infoDiv = document.getElementById("trackInfo");
@@ -56,6 +77,10 @@
     }
 
     function handleMidi() {
+      // Clear previous scheduled tones
+      Tone.Transport.stop();
+      Tone.Transport.cancel();
+
       if (!midi) {
         alert("No MIDI provided.");
         return;
@@ -88,19 +113,25 @@
       const gcode = [];
       while (curr < track.notes.length) {
         // Keep the highest non-percussion note if multiple occur at the same time
-        let highestCurrNote = track.notes[curr].midi;
+        let highestCurrNote = track.notes[curr].percussion ? -1 : track.notes[curr].midi;
+        let duration = track.notes[curr].duration;
         while (
           curr + 1 < track.notes.length &&
           track.notes[curr].time === track.notes[curr + 1].time
         ) {
           curr++;
+          if(track.notes[curr].midi > highestCurrNote && !track.notes[curr].percussion) {
+            duration = track.notes[curr].duration;
+          }
+
           highestCurrNote = track.notes[curr].percussion ? highestCurrNote : Math.max(highestCurrNote, track.notes[curr].midi);
         }
 
-        // Default to 5ms, 5000hz note to simulate percussion
-        const frequency = track.notes[curr].percussion ? 5000 : noteToFreq(highestCurrNote);
+        // Default to 20ms, 100hz note to simulate percussion
+        const frequency = highestCurrNote === -1 ? 100 : noteToFreq(highestCurrNote);
+        duration = highestCurrNote === -1 ? 20/1000 : duration;
+
         const time = track.notes[curr].time;
-        const duration = track.notes[curr].percussion ? 5/1000 : track.notes[curr].duration;
         const nextNoteTime =
           curr + 1 < track.notes.length
             ? track.notes[curr + 1].time
@@ -125,6 +156,9 @@
           )} S${Math.round(frequency)}\n`
         );
 
+        // Schedule note to be played in song preview
+        Tone.Transport.schedule(playNote(frequency, trimmedDuration), time);
+
         // If the current note is released before the start of the next note, insert a pause
         if (pauseDuration >= minDuration) {
           gcode.push(
@@ -137,6 +171,8 @@
 
       const output = gcode.reduce((acc, e) => acc + e, "");
       document.getElementById("outputArea").value = output;
+
+      Tone.Transport.start();
     }
   </script>
 </body>
