@@ -66,7 +66,14 @@
       // Merge note arrays from selected tracks
       for(let i = 0; i < midi.tracks.length; i++) {
         if(document.getElementById(`trackButton${i}`).checked) {
-          track.notes = track.notes.concat(midi.tracks[i].notes);
+          let currTrack = midi.tracks[i].notes;
+          // If percussion, add a percussion flag to note
+          if(midi.tracks[i].instrument.percussion) {
+            currTrack.forEach((note) => {
+              note.percussion = true;
+            });
+          }
+          track.notes = track.notes.concat(currTrack);
         }
       }
 
@@ -80,33 +87,33 @@
       let curr = 0;
       const gcode = [];
       while (curr < track.notes.length) {
-
-        console.log(track.notes[curr].time);
-        // Keep the highest note if multiple occur at the same time
+        // Keep the highest non-percussion note if multiple occur at the same time
         let highestCurrNote = track.notes[curr].midi;
         while (
           curr + 1 < track.notes.length &&
           track.notes[curr].time === track.notes[curr + 1].time
         ) {
           curr++;
-          highestCurrNote = Math.max(highestCurrNote, track.notes[curr].midi);
+          highestCurrNote = track.notes[curr].percussion ? highestCurrNote : Math.max(highestCurrNote, track.notes[curr].midi);
         }
-        const frequency = noteToFreq(highestCurrNote);
+
+        // Default to 5ms, 5000hz note to simulate percussion
+        const frequency = track.notes[curr].percussion ? 5000 : noteToFreq(highestCurrNote);
         const time = track.notes[curr].time;
-        const duration = track.notes[curr].duration;
+        const duration = track.notes[curr].percussion ? 5/1000 : track.notes[curr].duration;
         const nextNoteTime =
           curr + 1 < track.notes.length
             ? track.notes[curr + 1].time
             : duration + time;
 
-        // If this note overlaps the next note, cut it off
+        // If this note overlaps the next note, cut the current note off
         let trimmedDuration = Math.min(nextNoteTime - time, duration);
 
         const pauseDuration = nextNoteTime - time - trimmedDuration;
 
         // Marlin doesn't seem to deal with very short pauses accurately, so merge short pauses with the previous note.
         // May need tuning
-        const minDuration = 18/1000;
+        const minDuration = 20/1000;
 
         if(pauseDuration < minDuration) {
           trimmedDuration += pauseDuration;
