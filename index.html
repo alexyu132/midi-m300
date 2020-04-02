@@ -27,7 +27,7 @@
       }
       ,
       envelope: {
-        attack: 0.001,
+        attack: 0,
         decay: 0,
         sustain: 1,
         release: 0.001
@@ -55,7 +55,8 @@
     });
 
     function playNote(frequency, duration) {
-      return (time) => {synth.triggerAttackRelease(frequency, duration, time)}; 
+      // Simulate a startup time of 5ms
+      return (time) => {synth.triggerAttackRelease(frequency, duration - 5/1000, time)}; 
     }
 
     function generateTrackInfo(midi) {
@@ -157,7 +158,7 @@
         );
 
         // Schedule note to be played in song preview
-        Tone.Transport.schedule(playNote(frequency, trimmedDuration), time);
+        Tone.Transport.schedule(playNote(frequency, trimmedDuration * tempoMultiplier), time * tempoMultiplier);
 
         // If the current note is released before the start of the next note, insert a pause
         if (pauseDuration >= minDuration) {
