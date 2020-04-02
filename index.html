@@ -15,6 +15,9 @@
     <input type="file" id="filereader" />
     <div id="trackInfo"></div>
     <button type="button" id="start" onclick="handleMidi()">Generate</button>
+    <button type="button" id="previewStart" onclick="togglePreview()">Play/Pause Preview</button>
+    <button type="button" id="previewStop" onclick="stopPreview()">Stop Preview</button>
+
   </div>
   <textarea id="outputArea" rows="50" cols="100"></textarea>
   <script>
@@ -57,6 +60,14 @@
     function playNote(frequency, duration) {
       // Simulate a startup time of 5ms
       return (time) => {synth.triggerAttackRelease(frequency, duration - 5/1000, time)}; 
+    }
+
+    function togglePreview() {
+      Tone.Transport.toggle();
+    }
+
+    function stopPreview() {
+      Tone.Transport.stop();
     }
 
     function generateTrackInfo(midi) {
@@ -172,8 +183,6 @@
 
       const output = gcode.reduce((acc, e) => acc + e, "");
       document.getElementById("outputArea").value = output;
-
-      Tone.Transport.start();
     }
   </script>
 </body>
