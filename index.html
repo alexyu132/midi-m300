@@ -19,6 +19,11 @@
     <button type="button" id="previewStop" onclick="stopPreview()">Stop Preview</button>
 
   </div>
+  <div>
+    <input type="checkbox" id="g4toggle">
+    <label for="g4toggle"> Add G4 after M300 (required for Duet)</label>
+  </div>
+  <br>
   <textarea id="outputArea" rows="50" cols="100"></textarea>
   <script>
     let midi = null;
@@ -38,7 +43,7 @@
     }
     ).toMaster();
 
-    synth.volume.value=-25;
+    synth.volume.value = -25;
 
     document.getElementById("filereader").addEventListener("change", e => {
       const files = e.target.files;
@@ -59,7 +64,7 @@
 
     function playNote(frequency, duration) {
       // Simulate a startup time of 5ms
-      return (time) => {synth.triggerAttackRelease(frequency, duration - 5/1000, time)}; 
+      return (time) => { synth.triggerAttackRelease(frequency, duration - 5 / 1000, time) };
     }
 
     function togglePreview() {
@@ -89,6 +94,8 @@
     }
 
     function handleMidi() {
+      const useG4 = document.getElementById("g4toggle").checked;
+
       // Clear previous scheduled tones
       Tone.Transport.stop();
       Tone.Transport.cancel();
@@ -98,14 +105,14 @@
         return;
       }
 
-      const track = {notes: []};
+      const track = { notes: [] };
 
       // Merge note arrays from selected tracks
-      for(let i = 0; i < midi.tracks.length; i++) {
-        if(document.getElementById(`trackButton${i}`).checked) {
+      for (let i = 0; i < midi.tracks.length; i++) {
+        if (document.getElementById(`trackButton${i}`).checked) {
           let currTrack = midi.tracks[i].notes;
           // If percussion, add a percussion flag to note
-          if(midi.tracks[i].instrument.percussion) {
+          if (midi.tracks[i].instrument.percussion) {
             currTrack.forEach((note) => {
               note.percussion = true;
             });
@@ -132,7 +139,7 @@
           track.notes[curr].time === track.notes[curr + 1].time
         ) {
           curr++;
-          if(track.notes[curr].midi > highestCurrNote && !track.notes[curr].percussion) {
+          if (track.notes[curr].midi > highestCurrNote && !track.notes[curr].percussion) {
             duration = track.notes[curr].duration;
           }
 
@@ -141,7 +148,7 @@
 
         // Default to 20ms, 100hz note to simulate percussion
         const frequency = highestCurrNote === -1 ? 100 : noteToFreq(highestCurrNote);
-        duration = highestCurrNote === -1 ? 20/1000 : duration;
+        duration = highestCurrNote === -1 ? 20 / 1000 : duration;
 
         const time = track.notes[curr].time;
         const nextNoteTime =
@@ -156,9 +163,9 @@
 
         // Marlin doesn't seem to deal with very short pauses accurately, so merge short pauses with the previous note.
         // May need tuning
-        const minDuration = 20/1000;
+        const minDuration = 20 / 1000;
 
-        if(pauseDuration < minDuration) {
+        if (pauseDuration < minDuration) {
           trimmedDuration += pauseDuration;
         }
         // Write an M300 to play a note with the calculated pitch and duration
@@ -168,6 +175,15 @@
           )} S${Math.round(frequency)}\n`
         );
 
+        // Duet firmware needs G4 pauses between notes
+        if (useG4) {
+          gcode.push(
+            `G4 P${Math.round(
+              trimmedDuration * 1000 * tempoMultiplier
+            )}\n`
+          );
+        }
+
         // Schedule note to be played in song preview
         Tone.Transport.schedule(playNote(frequency, trimmedDuration * tempoMultiplier), time * tempoMultiplier);
 
@@ -176,6 +192,11 @@
           gcode.push(
             `M300 P${Math.round(pauseDuration * tempoMultiplier * 1000)} S0\n`
           );
+          if (useG4) {
+            gcode.push(
+              `G4 P${Math.round(pauseDuration * tempoMultiplier * 1000)}\n`
+            );
+          }
         }
 
         curr++;
