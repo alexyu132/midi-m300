@@ -65,15 +65,18 @@
     
     function calculateMidiLength(midi) {
       let maxLength = 0;
+      const tempoMultiplier = 1 / Math.max(document.getElementById("speedMultiplierInput").value, 0.01);
+  
       midi.tracks.forEach(track => {
         track.notes.forEach(note => {
-          const noteEndTime = note.time + note.duration;
+          const noteEndTime = (note.time + note.duration) * tempoMultiplier;
           if (noteEndTime > maxLength) {
             maxLength = noteEndTime;
           }
         });
       });
-      return maxLength; // MIDI length in seconds
+  
+      return maxLength; // Adjusted MIDI length in seconds considering the tempo multiplier
     }
 
     function playNote(frequency, duration) {
