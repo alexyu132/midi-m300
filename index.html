@@ -17,7 +17,7 @@
     <button type="button" id="start" onclick="handleMidi()">Generate</button>
     <button type="button" id="previewStart" onclick="togglePreview()">Play/Pause Preview</button>
     <button type="button" id="previewStop" onclick="stopPreview()">Stop Preview</button>
-
+    <button type="button" id="loopToggle" onclick="toggleLoop()">Toggle Loop</button>
   </div>
   <div>
     <input type="checkbox" id="g4toggle">
@@ -27,6 +27,7 @@
   <textarea id="outputArea" rows="50" cols="100"></textarea>
   <script>
     let midi = null;
+    let isLooping = false;
     document.getElementById('outputArea').value = '';
 
     let synth = new Tone.Synth({
@@ -61,13 +62,43 @@
         reader.readAsArrayBuffer(file);
       }
     });
+    
+    function calculateMidiLength(midi) {
+      let maxLength = 0;
+      midi.tracks.forEach(track => {
+        track.notes.forEach(note => {
+          const noteEndTime = note.time + note.duration;
+          if (noteEndTime > maxLength) {
+            maxLength = noteEndTime;
+          }
+        });
+      });
+      return maxLength; // MIDI length in seconds
+    }
 
     function playNote(frequency, duration) {
       // Simulate a startup time of 5ms
       return (time) => { synth.triggerAttackRelease(frequency, duration - 5 / 1000, time) };
     }
 
+    function toggleLoop() {
+      isLooping = !isLooping; // Toggle looping state
+      document.getElementById('loopToggle').innerText = isLooping ? "Disable Loop" : "Enable Loop";
+
+      if (isLooping) {
+        const midiLength = calculateMidiLength(midi); // Ensure `midi` is accessible here
+        Tone.Transport.loop = true;
+        Tone.Transport.loopStart = 0;
+        Tone.Transport.loopEnd = midiLength; // Set loop end to the calculated MIDI length
+      } else {
+        Tone.Transport.loop = false;
+      }
+    }
+
     function togglePreview() {
+        if (isLooping) {
+        Tone.Transport.loop = true
+      }
       Tone.Transport.toggle();
     }
 
