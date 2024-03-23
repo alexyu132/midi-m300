@@ -1,3 +1,111 @@
 body {
     font-family: 'Helvetica Neue', 'Helvetica', sans-serif;
+    background-color: #121212;
+    color: #e0e0e0;
+    margin: 0;
+    padding: 20px;
+}
+
+h1 {
+    color: #bb86fc;
+    text-align: center;
+}
+
+div {
+    margin-bottom: 20px;
+}
+
+input[type="file"],
+input[type="checkbox"] {
+    background-color:
+    color: #e0e0e0;
+    border: 1px solid #555;
+    padding: 5px;
+}
+
+button {
+    background-color: #3700B3;
+    color: #e0e0e0;
+    border: none;
+    border-radius: 5px;
+    padding: 10px 20px;
+    cursor: pointer;
+    margin-right: 10px;
+}
+
+button:hover {
+    background-color: #6200EE;
+}
+
+textarea {
+    background-color: #333;
+    color: #e0e0e0;
+    width: 100%;
+    height: 300px;
+    border: 1px solid #555;
+    padding: 10px;
+}
+
+#trackInfo {
+    background-color: #242424; 
+    color: #e0e0e0;
+    padding: 10px;
+    border-radius: 5px;
+}
+
+#trackInfo input[type="checkbox"] {
+    margin-right: 5px;
+}
+
+#trackInfo label {
+    margin-right: 15px;
+}
+
+#outputArea, #gcodeDisplay {
+    font-size: 0.85em;
+    background-color: #333;
+    color: #e0e0e0; 
+}
+
+#outputArea {
+    margin-top: 20px;
+    border: 1px solid #555;
+}
+
+#gcodeDisplay {
+    border: 1px solid #555;
+    padding: 10px;
+    overflow-y: auto;
+    height: 300px; 
+}
+
+#editorContainer {
+  width: max-content; 
+  min-height: 500px; 
+  position: relative;
+}
+
+#outputArea, #codeMirror {
+  font-family: monospace;
+  line-height: normal;
+  font-size: 14px; /* Ensure this matches to keep text aligned */
+}
+
+#outputArea {
+  width: 100%;
+  height: 100%;
+}
+
+#codeMirror {
+  color: transparent; /* Hide the text color */
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  white-space: pre-wrap;
+  overflow: hidden;
+}
+
+.highlight {
+    background-color: #ffff00;
 }
