@@ -15,7 +15,7 @@
     <input type="file" id="filereader" />
     <div id="trackInfo"></div>
     <button type="button" id="start" onclick="handleMidi()">Generate</button>
-    <button type="button" id="previewStart" onclick="togglePreview()">Play/Pause Preview</button>
+    <button type="button" id="previewStart" onclick="togglePreview()">Play Preview</button>
     <button type="button" id="previewStop" onclick="stopPreview()">Stop Preview</button>
     <button type="button" id="loopToggle" onclick="toggleLoop()">Toggle Loop</button>
   </div>
@@ -24,7 +24,7 @@
     <label for="g4toggle"> Add G4 after M300 (required for Duet)</label>
   </div>
   <br>
-  <textarea id="outputArea" rows="50" cols="100"></textarea>
+  <textarea id="outputArea" rows="20" cols="50"></textarea>
   <script>
     let midi = null;
     let isLooping = false;
@@ -63,25 +63,48 @@
       }
     });
     
-    function calculateMidiLength(midi) {
-      let maxLength = 0;
-      const tempoMultiplier = 1 / Math.max(document.getElementById("speedMultiplierInput").value, 0.01);
-  
-      midi.tracks.forEach(track => {
-        track.notes.forEach(note => {
-          const noteEndTime = (note.time + note.duration) * tempoMultiplier;
-          if (noteEndTime > maxLength) {
-            maxLength = noteEndTime;
-          }
+    function calculateGcodeLength(gcodeLines) {
+        let lastNoteEndTime = 0; // Initialize the end time of the last note
+        let currentTime = 0; // Track the current time as we process each line
+
+        gcodeLines.forEach(line => {
+            let match = line.match(/M300.*P(\d+)/i); // Match M300 command with duration
+            if (match) {
+                const duration = parseInt(match[1], 10); // Parse the duration
+                currentTime += duration; // Increment current time by this duration
+                lastNoteEndTime = currentTime; // Update the end time of the last note
+            }
+
+            // Optional: If using G4 for pauses between notes, handle it similarly
+            match = line.match(/G4 P(\d+)/i);
+            if (match) {
+                const pauseDuration = parseInt(match[1], 10); // Parse the pause duration
+                currentTime += pauseDuration; // Increment current time by this pause duration
+                // No need to update lastNoteEndTime since G4 doesn't indicate a note's end
+            }
         });
+    
+        // Convert the last note end time from milliseconds to seconds for the final value
+        // This is when the last note ends, and the loop can potentially restart
+        return lastNoteEndTime / 1000;
+    }
+
+    function mirrorGcodeToDisplay() {
+      const gcodeText = document.getElementById("outputArea").value;
+      const gcodeDisplay = document.getElementById("outputArea");
+      gcodeDisplay.innerHTML = ''; // Clear previous content
+
+      gcodeText.split("\n").forEach((line, index) => {
+        const lineSpan = document.createElement("span");
+        lineSpan.textContent = line + "\n"; // Add line break for display
+        lineSpan.id = `gcode-line-${index}`; // Unique ID for each line
+        gcodeDisplay.appendChild(lineSpan);
       });
-  
-      return maxLength; // Adjusted MIDI length in seconds considering the tempo multiplier
     }
 
     function playNote(frequency, duration) {
       // Simulate a startup time of 5ms
-      return (time) => { synth.triggerAttackRelease(frequency, duration - 5 / 1000, time) };
+      return (time) => { synth.triggerAttackRelease(frequency, duration / 1000, time) };
     }
 
     function toggleLoop() {
@@ -89,25 +112,62 @@
       document.getElementById('loopToggle').innerText = isLooping ? "Disable Loop" : "Enable Loop";
 
       if (isLooping) {
-        const midiLength = calculateMidiLength(midi); // Ensure `midi` is accessible here
+        const gcode = document.getElementById("outputArea").value.split("\n");
+        const gcodeLength = calculateGcodeLength(gcode);
         Tone.Transport.loop = true;
         Tone.Transport.loopStart = 0;
-        Tone.Transport.loopEnd = midiLength; // Set loop end to the calculated MIDI length
+        Tone.Transport.loopEnd = gcodeLength; // Set loop end to the calculated GCODE time
       } else {
         Tone.Transport.loop = false;
       }
     }
 
+
     function togglePreview() {
-        if (isLooping) {
-        const midiLength = calculateMidiLength(midi);
-        Tone.Transport.loop = true
+      if (isLooping) {
+        alert("You must have the GCODE running first!")
+      } else{
+        const gcodeLines = document.getElementById("outputArea").value.split("\n");
+        parseAndPlayGcode(gcodeLines);
       }
-      Tone.Transport.toggle();
     }
 
+    function parseAndPlayGcode(gcodeLines) {
+      // Stop and clear the current Transport schedule
+      Tone.Transport.cancel();
+      Tone.Transport.stop();
+
+      let currentTimeframe = 0; // Keep track of cumulative time for note scheduling
+
+      // Parse each line of GCODE and schedule notes
+      gcodeLines.forEach(line => {
+        const match = line.match(/M300 P(\d+) S(\d+)/);
+        if (match) {
+          const duration = parseInt(match[1], 10) / 1000; // Convert duration from ms to seconds
+          const frequency = parseInt(match[2], 10); // S parameter for frequency
+          Tone.Transport.schedule(time => {
+            synth.triggerAttackRelease(frequency, duration, time);
+          }, currentTimeframe);
+
+          // Increment the currentTime by the note's duration for the next scheduling
+          currentTimeframe += duration;
+        }
+      });
+
+      // After scheduling all notes, start the Transport
+      if (isLooping) {
+        const gcodeLength = calculateGcodeLength(gcode);
+      }
+      Tone.Transport.start();
+    }
+
+    
+    
     function stopPreview() {
       Tone.Transport.stop();
+      if (isLooping) {
+        toggleLoop()
+      }
     }
 
     function generateTrackInfo(midi) {
@@ -219,7 +279,7 @@
           );
         }
 
-        // Schedule note to be played in song preview
+        // Schedule note to be played in GCODE preview
         Tone.Transport.schedule(playNote(frequency, trimmedDuration * tempoMultiplier), time * tempoMultiplier);
 
         // If the current note is released before the start of the next note, insert a pause
